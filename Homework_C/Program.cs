@@ -5,50 +5,125 @@ class Program
 {
     static string userName = "";
     static List<string> tasks = new List<string>();
+    static int maxTaskCount = 0;
+    static int maxTaskLength = 0;
 
     static void Main(string[] args)
     {
-        Console.WriteLine("Добро пожаловать! Доступные команды: /start, /help, /info, /addtask, /showtasks, /removetask, /exit");
-
-        while (true)
+        try
         {
-            Console.Write("Введите команду: ");
-            string input = Console.ReadLine();
+            Console.WriteLine("Добро пожаловать! Доступные команды: /start, /help, /info, /addtask, /showtasks, /removetask, /exit");
 
-            switch (input)
+            // Ввод максимального количества задач
+            Console.Write("Введите максимально допустимое количество задач (1-100): ");
+            maxTaskCount = ParseAndValidateInt(Console.ReadLine(), 1, 100);
+
+            // Ввод максимальной длины задачи
+            Console.Write("Введите максимально допустимую длину задачи (1-100): ");
+            maxTaskLength = ParseAndValidateInt(Console.ReadLine(), 1, 100);
+
+            while (true)
             {
-                case "/start":
-                    StartCommand();
-                    break;
-                case "/help":
-                    HelpCommand();
-                    break;
-                case "/info":
-                    InfoCommand();
-                    break;
-                case "/addtask":
-                    AddTaskCommand();
-                    break;
-                case "/showtasks":
-                    ShowTasksCommand();
-                    break;
-                case "/removetask":
-                    RemoveTaskCommand();
-                    break;
-                case "/exit":
-                    ExitCommand();
-                    return;
-                default:
-                    if (input.StartsWith("/echo") && !string.IsNullOrEmpty(userName))
-                    {
-                        EchoCommand(input);
-                    }
-                    else
-                    {
-                        Console.WriteLine("Неизвестная команда или команда /echo недоступна. Введите /help для справки.");
-                    }
-                    break;
+                try
+                {
+                    Console.Write("Введите команду: ");
+                    string input = Console.ReadLine();
+
+                    HandleCommand(input);
+                }
+                catch (ArgumentException ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+                catch (TaskCountLimitException ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+                catch (TaskLengthLimitException ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+                catch (DuplicateTaskException ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Произошла непредвиденная ошибка: {ex.GetType()}");
+                    Console.WriteLine($"Message: {ex.Message}");
+                    Console.WriteLine($"StackTrace: {ex.StackTrace}");
+                    Console.WriteLine($"InnerException: {ex.InnerException}");
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Произошла непредвиденная ошибка: {ex.GetType()}");
+            Console.WriteLine($"Message: {ex.Message}");
+            Console.WriteLine($"StackTrace: {ex.StackTrace}");
+            Console.WriteLine($"InnerException: {ex.InnerException}");
+        }
+    }
+
+    static void HandleCommand(string input)
+    {
+        switch (input)
+        {
+            case "/start":
+                StartCommand();
+                break;
+            case "/help":
+                HelpCommand();
+                break;
+            case "/info":
+                InfoCommand();
+                break;
+            case "/addtask":
+                AddTaskCommand();
+                break;
+            case "/showtasks":
+                ShowTasksCommand();
+                break;
+            case "/removetask":
+                RemoveTaskCommand();
+                break;
+            case "/exit":
+                ExitCommand();
+                Environment.Exit(0);
+                break;
+            default:
+                if (input.StartsWith("/echo") && !string.IsNullOrEmpty(userName))
+                {
+                    EchoCommand(input);
+                }
+                else
+                {
+                    Console.WriteLine("Неизвестная команда или команда /echo недоступна. Введите /help для справки.");
+                }
+                break;
+        }
+    }
+
+    static int ParseAndValidateInt(string? str, int min, int max)
+    {
+        if (!int.TryParse(str, out int result))
+        {
+            throw new ArgumentException("Введенное значение должно быть числом.");
+        }
+
+        if (result < min || result > max)
+        {
+            throw new ArgumentException($"Введенное значение должно быть в диапазоне от {min} до {max}.");
+        }
+
+        return result;
+    }
+
+    static void ValidateString(string? str)
+    {
+        if (string.IsNullOrWhiteSpace(str))
+        {
+            throw new ArgumentException("Строка не может быть пустой или состоять только из пробелов.");
         }
     }
 
@@ -56,6 +131,7 @@ class Program
     {
         Console.Write("Введите ваше имя: ");
         userName = Console.ReadLine();
+        ValidateString(userName);
         Console.WriteLine($"Привет, {userName}!");
     }
 
@@ -91,6 +167,23 @@ class Program
     {
         Console.Write("Пожалуйста, введите описание задачи: ");
         string taskDescription = Console.ReadLine();
+        ValidateString(taskDescription);
+
+        if (tasks.Count >= maxTaskCount)
+        {
+            throw new TaskCountLimitException(maxTaskCount);
+        }
+
+        if (taskDescription.Length > maxTaskLength)
+        {
+            throw new TaskLengthLimitException(taskDescription.Length, maxTaskLength);
+        }
+
+        if (tasks.Contains(taskDescription))
+        {
+            throw new DuplicateTaskException(taskDescription);
+        }
+
         tasks.Add(taskDescription);
         Console.WriteLine($"Задача \"{taskDescription}\" добавлена.");
     }
@@ -136,5 +229,29 @@ class Program
     static void ExitCommand()
     {
         Console.WriteLine("До свидания!");
+    }
+}
+
+class TaskCountLimitException : Exception
+{
+    public TaskCountLimitException(int taskCountLimit)
+        : base($"Превышено максимальное количество задач равное {taskCountLimit}")
+    {
+    }
+}
+
+class TaskLengthLimitException : Exception
+{
+    public TaskLengthLimitException(int taskLength, int taskLengthLimit)
+        : base($"Длина задачи '{taskLength}' превышает максимально допустимое значение {taskLengthLimit}")
+    {
+    }
+}
+
+class DuplicateTaskException : Exception
+{
+    public DuplicateTaskException(string task)
+        : base($"Задача '{task}' уже существует")
+    {
     }
 }
